@@ -107,7 +107,29 @@ async function renderPdf(){
   clone.querySelectorAll('.no-print').forEach(n=>n.remove());
   clone.querySelectorAll('.calendar').forEach(n=>{n.style.minWidth='0';n.style.width='100%';n.style.display='grid';n.style.gridTemplateColumns='repeat(12,minmax(0,1fr))'});
  }
- host.append(clone);(request?$id('printRequest'):document.body).append(host);
+ host.append(clone);document.body.append(host);
+ let requestStyle=null;
+ if(request){
+  const rules=[];
+  for(const sheet of Array.from(document.styleSheets)){
+   try{
+    for(const r of Array.from(sheet.cssRules||[])){
+     if(r.conditionText&&r.conditionText.includes('print')){
+      for(const inner of Array.from(r.cssRules||[])){
+       if(inner.selectorText?.includes('body.print-request #printRequest')){
+        const selector=inner.selectorText.split(',').filter(x=>x.includes('body.print-request #printRequest')).map(x=>x.trim().replace(/body\.print-request\s+#printRequest/g,'#arbeitsfrei-pdf-stage')).join(',');
+        if(selector)rules.push(selector+'{'+inner.style.cssText+'}');
+       }
+      }
+     }
+    }
+   }catch(e){}
+  }
+  requestStyle=document.createElement('style');
+  requestStyle.textContent=rules.join('\n')+'\n#arbeitsfrei-pdf-stage .original-pdf-exact{display:block!important;position:relative!important;width:794px!important;height:1123px!important;overflow:hidden!important;background:white!important}';
+  document.head.append(requestStyle);
+ }
+
  try{
   await wait(100);await document.fonts?.ready;
   for(const img of clone.querySelectorAll('img')){if(!img.complete)await new Promise(r=>{img.onload=r;img.onerror=r})}
@@ -124,7 +146,7 @@ async function renderPdf(){
   const blob=pdfFromJpeg(canvas.toDataURL('image/jpeg',.91),pageW*72/25.4,pageH*72/25.4,canvas.width,canvas.height);
   const kind=request?'Urlaubsantrag':category?'Berufsgruppen-Kalender':person?(details?'Mitarbeiter-Details':'Mitarbeiter-Kalender'):'Jahreskalender';
   showPdf(blob,'Arbeitsfrei_'+kind+'_'+(typeof year!=='undefined'?year:'')+'.pdf');
- }finally{host.remove();document.body.classList.remove('print-request','print-category','print-person-calendar','print-person-details');}
+ }finally{host.remove();requestStyle?.remove();document.body.classList.remove('print-request','print-category','print-person-calendar','print-person-details');}
 }
 let busy=false;
 window.arbeitsfreiPdfExport=async function(){
